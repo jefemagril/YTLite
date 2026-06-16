@@ -136,7 +136,7 @@
 "HidePrevNext" = "Hide Previous and Next buttons";
 "HidePrevNextDesc" = "Hides Previous and Next video buttons from overlay.";
 "ReplacePrevNext" = "Fast forward and Rewind buttons";
-"ReplacePrevNextDesc" = "Replaces Previous and Next video buttons to Fast forward and Rewind buttons in overlay.";
+"ReplacePrevNextDesc" = "Replaces Previous and Next video buttons with Fast forward and Rewind buttons in the player overlay and system-level remote controls.";
 "RememberLoopMode" = "Remember loop mode";
 "RememberLoopModeDesc" = "Remembers the last selected loop mode in the player menu.";
 "FullscreenToTheLeft" = "Fullscreen on left rotation";

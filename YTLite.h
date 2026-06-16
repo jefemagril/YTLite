@@ -136,6 +136,8 @@
 @property (nonatomic, weak, readwrite) UIViewController *parentViewController;
 @property (nonatomic, weak, readwrite) UIViewController *UIDelegate;
 @property (nonatomic, readonly) NSString *contentVideoID;
+@property (readonly, nonatomic) CGFloat currentVideoMediaTime;
+@property (readonly, nonatomic) CGFloat currentVideoTotalMediaTime;
 - (void)setActiveCaptionTrack:(id)track;
 - (void)setPlaybackRate:(CGFloat)rate;
 - (void)shortsToRegular;
@@ -145,6 +147,7 @@
 - (void)autoQuality;
 - (void)play;
 - (void)pause;
+- (void)seekToTime:(CGFloat)time;
 @end
 
 @interface YTPlayerView : UIView

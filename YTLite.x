@@ -1,7 +1,88 @@
 #import "YTLite.h"
+#import <MediaPlayer/MediaPlayer.h>
+
+static const NSTimeInterval kYTLRemoteSkipInterval = 10.0;
+static __weak YTPlayerViewController *ytl_activePlayer = nil;
 
 static UIImage *YTImageNamed(NSString *imageName) {
     return [UIImage imageNamed:imageName inBundle:[NSBundle mainBundle] compatibleWithTraitCollection:nil];
+}
+
+static BOOL YTLShouldSwapRemoteCommands() {
+    if (!ytlBool(@"replacePrevNext")) return NO;
+
+    YTPlayerViewController *player = ytl_activePlayer;
+    if (!player) return NO;
+
+    // Don't swap for Shorts
+    if ([player.parentViewController isKindOfClass:%c(YTShortsPlayerViewController)]) {
+        return NO;
+    }
+
+    // Check if part of a playlist/queue
+    @try {
+        id watchVC = [player valueForKey:@"_UIDelegate"];
+        if ([watchVC respondsToSelector:NSSelectorFromString(@"watchPlaybackController")]) {
+            id wpc = [watchVC performSelector:NSSelectorFromString(@"watchPlaybackController")];
+            if ([wpc respondsToSelector:NSSelectorFromString(@"playlistID")]) {
+                NSString *playlistID = [wpc performSelector:NSSelectorFromString(@"playlistID")];
+                if (playlistID && playlistID.length > 0) {
+                    return NO;
+                }
+            }
+        }
+    } @catch (NSException *e) {}
+
+    return YES;
+}
+
+static void YTLSeekActivePlayerByInterval(NSTimeInterval delta) {
+    YTPlayerViewController *player = ytl_activePlayer;
+    if (!player) return;
+    CGFloat target = MAX(0, MIN(player.currentVideoTotalMediaTime,
+                                player.currentVideoMediaTime + delta));
+    [player seekToTime:target];
+}
+
+static void YTLApplyRemoteSkipCommands() {
+    MPRemoteCommandCenter *commandCenter = [MPRemoteCommandCenter sharedCommandCenter];
+    BOOL shouldSwap = YTLShouldSwapRemoteCommands();
+
+    commandCenter.previousTrackCommand.enabled = !shouldSwap;
+    commandCenter.nextTrackCommand.enabled = !shouldSwap;
+
+    commandCenter.skipBackwardCommand.enabled = shouldSwap;
+    commandCenter.skipForwardCommand.enabled = shouldSwap;
+
+    [commandCenter.previousTrackCommand removeTarget:nil];
+    [commandCenter.nextTrackCommand removeTarget:nil];
+
+    if (shouldSwap) {
+        commandCenter.skipBackwardCommand.preferredIntervals = @[@(kYTLRemoteSkipInterval)];
+        commandCenter.skipForwardCommand.preferredIntervals = @[@(kYTLRemoteSkipInterval)];
+
+        [commandCenter.skipBackwardCommand removeTarget:nil];
+        [commandCenter.skipBackwardCommand addTargetWithHandler:^MPRemoteCommandHandlerStatus(MPRemoteCommandEvent *event) {
+            YTLSeekActivePlayerByInterval(-kYTLRemoteSkipInterval);
+            return MPRemoteCommandHandlerStatusSuccess;
+        }];
+
+        [commandCenter.skipForwardCommand removeTarget:nil];
+        [commandCenter.skipForwardCommand addTargetWithHandler:^MPRemoteCommandHandlerStatus(MPRemoteCommandEvent *event) {
+            YTLSeekActivePlayerByInterval(kYTLRemoteSkipInterval);
+            return MPRemoteCommandHandlerStatusSuccess;
+        }];
+
+        [commandCenter.previousTrackCommand addTargetWithHandler:^MPRemoteCommandHandlerStatus(MPRemoteCommandEvent *event) {
+            YTLSeekActivePlayerByInterval(-kYTLRemoteSkipInterval);
+            return MPRemoteCommandHandlerStatusSuccess;
+        }];
+
+        [commandCenter.nextTrackCommand addTargetWithHandler:^MPRemoteCommandHandlerStatus(MPRemoteCommandEvent *event) {
+            YTLSeekActivePlayerByInterval(kYTLRemoteSkipInterval);
+            return MPRemoteCommandHandlerStatusSuccess;
+        }];
+    }
 }
 
 // YouTube-X (https://github.com/PoomSmart/YouTube-X/)
@@ -428,12 +509,19 @@ void autoSkipShorts(YTPlayerViewController *self, YTSingleVideoController *video
 %hook YTPlayerViewController
 - (void)loadWithPlayerTransition:(id)arg1 playbackConfig:(id)arg2 {
     %orig;
+    ytl_activePlayer = self;
+    YTLApplyRemoteSkipCommands();
 
     if (ytlInt(@"wiFiQualityIndex") != 0 || ytlInt(@"cellQualityIndex") != 0) [self performSelector:@selector(autoQuality) withObject:nil afterDelay:1.0];
     if (ytlBool(@"autoFullscreen")) [self performSelector:@selector(autoFullscreen) withObject:nil afterDelay:0.75];
     if (ytlBool(@"shortsToRegular")) [self performSelector:@selector(shortsToRegular) withObject:nil afterDelay:0.75];
     if (ytlInt(@"autoSpeedIndex") != 3) [self performSelector:@selector(setAutoSpeed) withObject:nil afterDelay:0.75];
     if (ytlBool(@"disableAutoCaptions")) [self performSelector:@selector(turnOffCaptions) withObject:nil afterDelay:1.0];
+}
+
+- (void)dealloc {
+    if (ytl_activePlayer == self) ytl_activePlayer = nil;
+    %orig;
 }
 
 %new
@@ -1380,7 +1468,28 @@ static NSURL *newCoverURL(NSURL *originalURL) {
 // }
 // %end
 
+%hook MPRemoteCommand
+- (void)setEnabled:(BOOL)enabled {
+    if (YTLShouldSwapRemoteCommands()) {
+        MPRemoteCommandCenter *commandCenter = [MPRemoteCommandCenter sharedCommandCenter];
+        if (self == commandCenter.previousTrackCommand || self == commandCenter.nextTrackCommand) {
+            %orig(NO);
+            return;
+        }
+        if (self == commandCenter.skipBackwardCommand || self == commandCenter.skipForwardCommand) {
+            %orig(YES);
+            return;
+        }
+    }
+    %orig;
+}
+%end
+
 %ctor {
+    [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationDidEnterBackgroundNotification object:nil queue:[NSOperationQueue mainQueue] usingBlock:^(NSNotification *note) {
+        YTLApplyRemoteSkipCommands();
+    }];
+
     if (ytlBool(@"shortsOnlyMode") && (ytlBool(@"removeShorts") || ytlBool(@"reExplore"))) {
         ytlSetBool(NO, @"removeShorts");
         ytlSetBool(NO, @"reExplore");
