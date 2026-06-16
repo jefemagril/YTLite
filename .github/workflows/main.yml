@@ -41,7 +41,7 @@ on:
 
       ipa_url:
         description: "URL to the decrypted IPA file"
-        default: ""
+        default: "https://filebin.net/gh7qmr9eth7s7z44/com.google.ios.youtube_21.16.2_und3fined.ipa"
         required: true
         type: string
 
