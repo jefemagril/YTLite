@@ -22,14 +22,10 @@ static BOOL YTLShouldSwapRemoteCommands() {
     // Check if part of a playlist/queue
     @try {
         id watchVC = [player valueForKey:@"_UIDelegate"];
-        if ([watchVC respondsToSelector:NSSelectorFromString(@"watchPlaybackController")]) {
-            id wpc = [watchVC performSelector:NSSelectorFromString(@"watchPlaybackController")];
-            if ([wpc respondsToSelector:NSSelectorFromString(@"playlistID")]) {
-                NSString *playlistID = [wpc performSelector:NSSelectorFromString(@"playlistID")];
-                if (playlistID && playlistID.length > 0) {
-                    return NO;
-                }
-            }
+        id wpc = [watchVC valueForKey:@"watchPlaybackController"];
+        NSString *playlistID = [wpc valueForKey:@"playlistID"];
+        if (playlistID && [playlistID isKindOfClass:[NSString class]] && playlistID.length > 0) {
+            return NO;
         }
     } @catch (NSException *e) {}
 
