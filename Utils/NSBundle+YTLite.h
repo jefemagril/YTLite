@@ -1,5 +1,11 @@
 #import <Foundation/Foundation.h>
+#if __has_include(<roothide.h>)
 #import <roothide.h>
+#endif
+
+#ifndef jbroot
+#define jbroot(path) path
+#endif
 
 NS_ASSUME_NONNULL_BEGIN
 
