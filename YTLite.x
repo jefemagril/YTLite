@@ -8,15 +8,32 @@ static UIImage *YTImageNamed(NSString *imageName) {
     return [UIImage imageNamed:imageName inBundle:[NSBundle mainBundle] compatibleWithTraitCollection:nil];
 }
 
-static BOOL YTLShouldSwapRemoteCommands() {
-    if (!ytlBool(@"replacePrevNext")) return NO;
+static BOOL ytl_cachedShouldSwapRemoteCommands = NO;
+
+static void YTLUpdateCachedShouldSwapCommands() {
+    if (![NSThread isMainThread]) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            YTLUpdateCachedShouldSwapCommands();
+        });
+        return;
+    }
+
+    if (!ytlBool(@"replacePrevNext")) {
+        ytl_cachedShouldSwapRemoteCommands = NO;
+        return;
+    }
 
     YTPlayerViewController *player = ytl_activePlayer;
-    if (!player) return NO;
+    if (!player) {
+        ytl_cachedShouldSwapRemoteCommands = NO;
+        return;
+    }
 
-    // Don't swap for Shorts
-    if ([player.parentViewController isKindOfClass:%c(YTShortsPlayerViewController)]) {
-        return NO;
+    // Don't swap for Shorts (Safe Class evaluation)
+    Class shortsClass = %c(YTShortsPlayerViewController);
+    if (shortsClass && [player.parentViewController isKindOfClass:shortsClass]) {
+        ytl_cachedShouldSwapRemoteCommands = NO;
+        return;
     }
 
     // Check if part of a playlist/queue
@@ -25,11 +42,16 @@ static BOOL YTLShouldSwapRemoteCommands() {
         id wpc = [watchVC valueForKey:@"watchPlaybackController"];
         NSString *playlistID = [wpc valueForKey:@"playlistID"];
         if (playlistID && [playlistID isKindOfClass:[NSString class]] && playlistID.length > 0) {
-            return NO;
+            ytl_cachedShouldSwapRemoteCommands = NO;
+            return;
         }
     } @catch (NSException *e) {}
 
-    return YES;
+    ytl_cachedShouldSwapRemoteCommands = YES;
+}
+
+static BOOL YTLShouldSwapRemoteCommands() {
+    return ytl_cachedShouldSwapRemoteCommands;
 }
 
 static void YTLSeekActivePlayerByInterval(NSTimeInterval delta) {
@@ -41,6 +63,7 @@ static void YTLSeekActivePlayerByInterval(NSTimeInterval delta) {
 }
 
 static void YTLApplyRemoteSkipCommands() {
+    YTLUpdateCachedShouldSwapCommands();
     MPRemoteCommandCenter *commandCenter = [MPRemoteCommandCenter sharedCommandCenter];
     BOOL shouldSwap = YTLShouldSwapRemoteCommands();
 
@@ -492,7 +515,8 @@ void autoSkipShorts(YTPlayerViewController *self, YTSingleVideoController *video
     if (!ytlBool(@"autoSkipShorts")) return;
 
     if (floor(time.time) >= floor(video.totalMediaTime)) {
-        if ([self.parentViewController isKindOfClass:%c(YTShortsPlayerViewController)]) {
+        Class shortsClass = %c(YTShortsPlayerViewController);
+        if (shortsClass && [self.parentViewController isKindOfClass:shortsClass]) {
             YTShortsPlayerViewController *shortsVC = (YTShortsPlayerViewController *)self.parentViewController;
 
             if ([shortsVC respondsToSelector:@selector(reelContentViewRequestsAdvanceToNextVideo:)]) {
@@ -506,6 +530,7 @@ void autoSkipShorts(YTPlayerViewController *self, YTSingleVideoController *video
 - (void)loadWithPlayerTransition:(id)arg1 playbackConfig:(id)arg2 {
     %orig;
     ytl_activePlayer = self;
+    YTLUpdateCachedShouldSwapCommands();
     YTLApplyRemoteSkipCommands();
 
     if (ytlInt(@"wiFiQualityIndex") != 0 || ytlInt(@"cellQualityIndex") != 0) [self performSelector:@selector(autoQuality) withObject:nil afterDelay:1.0];
@@ -516,7 +541,10 @@ void autoSkipShorts(YTPlayerViewController *self, YTSingleVideoController *video
 }
 
 - (void)dealloc {
-    if (ytl_activePlayer == self) ytl_activePlayer = nil;
+    if (ytl_activePlayer == self) {
+        ytl_activePlayer = nil;
+        YTLUpdateCachedShouldSwapCommands();
+    }
     %orig;
 }
 
@@ -528,7 +556,8 @@ void autoSkipShorts(YTPlayerViewController *self, YTSingleVideoController *video
 
 %new
 - (void)shortsToRegular {
-    if (self.contentVideoID != nil && [self.parentViewController isKindOfClass:NSClassFromString(@"YTShortsPlayerViewController")]) {
+    Class shortsClass = NSClassFromString(@"YTShortsPlayerViewController");
+    if (self.contentVideoID != nil && shortsClass && [self.parentViewController isKindOfClass:shortsClass]) {
         NSString *vidLink = [NSString stringWithFormat:@"vnd.youtube://%@", self.contentVideoID];
         if ([[UIApplication sharedApplication] canOpenURL:[NSURL URLWithString:vidLink]]) {
             [[UIApplication sharedApplication] openURL:[NSURL URLWithString:vidLink] options:@{} completionHandler:nil];
@@ -538,15 +567,18 @@ void autoSkipShorts(YTPlayerViewController *self, YTSingleVideoController *video
 
 %new
 - (void)turnOffCaptions {
-    if ([self.view.superview isKindOfClass:NSClassFromString(@"YTWatchView")]) {
+    Class watchViewClass = NSClassFromString(@"YTWatchView");
+    if (watchViewClass && [self.view.superview isKindOfClass:watchViewClass]) {
         [self setActiveCaptionTrack:nil];
     }
 }
 
 %new
 - (void)setAutoSpeed {
-    if ([self.activeVideoPlayerOverlay isKindOfClass:NSClassFromString(@"YTMainAppVideoPlayerOverlayViewController")]
-        && [self.view.superview isKindOfClass:NSClassFromString(@"YTWatchView")]) {
+    Class overlayVCClass = NSClassFromString(@"YTMainAppVideoPlayerOverlayViewController");
+    Class watchViewClass = NSClassFromString(@"YTWatchView");
+    if (overlayVCClass && watchViewClass && [self.activeVideoPlayerOverlay isKindOfClass:overlayVCClass]
+        && [self.view.superview isKindOfClass:watchViewClass]) {
         YTMainAppVideoPlayerOverlayViewController *overlayVC = (YTMainAppVideoPlayerOverlayViewController *)self.activeVideoPlayerOverlay;
 
         NSArray *speedLabels = @[@0.25, @0.5, @0.75, @1.0, @1.25, @1.5, @1.75, @2.0, @3.0, @4.0, @5.0];
@@ -556,7 +588,8 @@ void autoSkipShorts(YTPlayerViewController *self, YTSingleVideoController *video
 
 %new
 - (void)autoQuality {
-    if (![self.view.superview isKindOfClass:NSClassFromString(@"YTWatchView")]) {
+    Class watchViewClass = NSClassFromString(@"YTWatchView");
+    if (!watchViewClass || ![self.view.superview isKindOfClass:watchViewClass]) {
         return;
     }
 
@@ -890,7 +923,8 @@ static BOOL isOverlayShown = YES;
 - (void)didPinch:(UIPinchGestureRecognizer *)gesture {
     %orig;
 
-    if (ytlBool(@"pinchToFullscreenShorts") && [self.playerViewDelegate.parentViewController isKindOfClass:NSClassFromString(@"YTShortsPlayerViewController")]) {
+    Class shortsClass = NSClassFromString(@"YTShortsPlayerViewController");
+    if (ytlBool(@"pinchToFullscreenShorts") && shortsClass && [self.playerViewDelegate.parentViewController isKindOfClass:shortsClass]) {
         YTShortsPlayerViewController *shortsPlayerVC = (YTShortsPlayerViewController *)self.playerViewDelegate.parentViewController;
         YTReelContentView *contentView = (YTReelContentView *)shortsPlayerVC.view;
         UIWindow *mainWindow = [[[UIApplication sharedApplication] delegate] window];
