@@ -111,7 +111,7 @@ jobs:
         run: |
           cd ytlite_source
           export THEOS=${{ github.workspace }}/theos
-          BUILD_ARGS="ROOTLESS=1 FINALPACKAGE=1"
+          BUILD_ARGS="FINALPACKAGE=1"
           if [ -n "${{ inputs.tweak_version }}" ]; then
             BUILD_ARGS="$BUILD_ARGS PACKAGE_VERSION=${{ inputs.tweak_version }}"
           fi
