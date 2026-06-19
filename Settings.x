@@ -663,5 +663,15 @@ static NSString *GetCacheSize() {
 
 %ctor {
     NSLog(@"[YTLite] Settings %%ctor running");
+    Class cls = objc_getClass("YTAppSettingsPresentationData");
+    NSLog(@"[YTLite] class YTAppSettingsPresentationData: %@", cls);
+    if (cls) {
+        BOOL respondsToClassMethod = [cls respondsToSelector:@selector(settingsCategoryOrder)];
+        BOOL respondsToInstanceMethod = [cls instancesRespondToSelector:@selector(settingsCategoryOrder)];
+        NSLog(@"[YTLite] YTAppSettingsPresentationData class method settingsCategoryOrder: %d", respondsToClassMethod);
+        NSLog(@"[YTLite] YTAppSettingsPresentationData instance method settingsCategoryOrder: %d", respondsToInstanceMethod);
+    } else {
+        NSLog(@"[YTLite] ERROR: class YTAppSettingsPresentationData is nil!");
+    }
     %init;
 }
