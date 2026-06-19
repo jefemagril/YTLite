@@ -57,6 +57,22 @@ static NSString *GetCacheSize() {
 }
 
 // Settings
+%hook YTSettingsViewController
+- (id)categories {
+    id cats = %orig;
+    NSLog(@"[YTLite] YTSettingsViewController categories called: %@", cats);
+    if ([cats isKindOfClass:[NSArray class]]) {
+        NSMutableArray *mutableCats = [(NSArray *)cats mutableCopy];
+        if (![mutableCats containsObject:@(YTLiteSection)]) {
+            [mutableCats addObject:@(YTLiteSection)];
+            NSLog(@"[YTLite] successfully added YTLiteSection (789) to YTSettingsViewController categories list!");
+        }
+        return mutableCats;
+    }
+    return cats;
+}
+%end
+
 %hook YTSettingsSectionController
 - (void)setSelectedItem:(NSUInteger)selectedItem {
     if (selectedItem != NSNotFound) %orig;
@@ -660,6 +676,20 @@ static NSString *GetCacheSize() {
     if (category == 1) {
         NSLog(@"[YTLite] Category 1 loaded! Forcing YTLite settings injection...");
         [self updateYTLiteSectionWithEntry:nil];
+        
+        NSLog(@"[YTLite] Scanning active runtime classes for settingsCategoryOrder...");
+        int numClasses = objc_getClassList(NULL, 0);
+        if (numClasses > 0) {
+            Class *classes = (Class *)malloc(sizeof(Class) * numClasses);
+            numClasses = objc_getClassList(classes, numClasses);
+            for (int i = 0; i < numClasses; i++) {
+                Class cls = classes[i];
+                if (class_respondsToSelector(object_getClass(cls), @selector(settingsCategoryOrder))) {
+                    NSLog(@"[YTLite] ACTIVE FOUND CLASS settingsCategoryOrder: %s", class_getName(cls));
+                }
+            }
+            free(classes);
+        }
     }
     if (category == YTLiteSection) {
         NSLog(@"[YTLite] loading YTLiteSection settings!");
@@ -688,7 +718,19 @@ static NSString *GetCacheSize() {
 %end
 
 %ctor {
-    NSLog(@"[YTLite] Settings %%ctor running");
+    NSLog(@"[YTLite] Settings %%ctor running - scanning for settingsCategoryOrder...");
+    int numClasses = objc_getClassList(NULL, 0);
+    if (numClasses > 0) {
+        Class *classes = (Class *)malloc(sizeof(Class) * numClasses);
+        numClasses = objc_getClassList(classes, numClasses);
+        for (int i = 0; i < numClasses; i++) {
+            Class cls = classes[i];
+            if (class_respondsToSelector(object_getClass(cls), @selector(settingsCategoryOrder))) {
+                NSLog(@"[YTLite] FOUND CLASS implementing settingsCategoryOrder: %s", class_getName(cls));
+            }
+        }
+        free(classes);
+    }
     
     Class clsApp = objc_getClass("YTAppSettingsPresentationData");
     if (clsApp) {
