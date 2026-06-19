@@ -10,6 +10,7 @@ static NSString *const kDefaultsSuiteName = @"com.dvntm.ytlite";
 
     dispatch_once(&onceToken, ^{
         defaults = [[self alloc] initWithSuiteName:kDefaultsSuiteName];
+        NSLog(@"[YTLite] Created defaults with suite %@ -> defaults object: %@", kDefaultsSuiteName, defaults);
         [defaults registerDefaults];
     });
 
@@ -17,10 +18,12 @@ static NSString *const kDefaultsSuiteName = @"com.dvntm.ytlite";
 }
 
 - (void)reset {
+    NSLog(@"[YTLite] Resetting defaults for suite: %@", kDefaultsSuiteName);
     [self removePersistentDomainForName:kDefaultsSuiteName];
 }
 
 - (void)registerDefaults {
+    NSLog(@"[YTLite] Registering defaults...");
     [self registerDefaults:@{
         @"noAds": @YES,
         @"backgroundPlayback": @YES,
@@ -31,6 +34,7 @@ static NSString *const kDefaultsSuiteName = @"com.dvntm.ytlite";
         @"cellQualityIndex": @0,
         @"pivotIndex": @0
     }];
+    NSLog(@"[YTLite] Defaults registered successfully.");
 }
 
 + (void)resetUserDefaults {
