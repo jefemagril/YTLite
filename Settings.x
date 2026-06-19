@@ -27,10 +27,16 @@ static NSString *GetCacheSize() {
 %hook YTAppSettingsPresentationData
 + (NSArray *)settingsCategoryOrder {
     NSArray *order = %orig;
+    NSLog(@"[YTLite] original settingsCategoryOrder: %@", order);
     NSMutableArray *mutableOrder = [order mutableCopy];
     NSUInteger insertIndex = [order indexOfObject:@(1)];
-    if (insertIndex != NSNotFound)
+    NSLog(@"[YTLite] insertIndex for category 1: %lu", (unsigned long)insertIndex);
+    if (insertIndex != NSNotFound) {
         [mutableOrder insertObject:@(YTLiteSection) atIndex:insertIndex + 1];
+        NSLog(@"[YTLite] successfully inserted YTLiteSection (789) into category order");
+    } else {
+        NSLog(@"[YTLite] WARNING: Category 1 (General) not found in settingsCategoryOrder!");
+    }
     return mutableOrder;
 }
 %end
@@ -111,6 +117,7 @@ static NSString *GetCacheSize() {
 
 %new(v@:@)
 - (void)updateYTLiteSectionWithEntry:(id)entry {
+    NSLog(@"[YTLite] updateYTLiteSectionWithEntry started running");
     NSMutableArray *sectionItems = [NSMutableArray array];
     Class YTSettingsSectionItemClass = %c(YTSettingsSectionItem);
     YTSettingsViewController *settingsViewController = [self valueForKey:@"_settingsViewControllerDelegate"];
@@ -627,7 +634,9 @@ static NSString *GetCacheSize() {
 }
 
 - (void)updateSectionForCategory:(NSUInteger)category withEntry:(id)entry {
+    NSLog(@"[YTLite] updateSectionForCategory called for category: %lu", (unsigned long)category);
     if (category == YTLiteSection) {
+        NSLog(@"[YTLite] loading YTLiteSection settings!");
         [self updateYTLiteSectionWithEntry:entry];
         return;
     } %orig;
