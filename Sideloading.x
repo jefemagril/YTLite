@@ -143,9 +143,6 @@ BOOL isSelf() {
 %end
 
 %ctor {
-    BOOL isAppStoreApp = [[NSFileManager defaultManager] fileExistsAtPath:[[NSBundle mainBundle] appStoreReceiptURL].path];
-    if (!isAppStoreApp) {
-        mainBundlePath = [[NSBundle mainBundle].bundlePath stringByResolvingSymlinksInPath];
-        %init(gSideloading);
-    }
+    mainBundlePath = [[NSBundle mainBundle].bundlePath stringByResolvingSymlinksInPath];
+    %init(gSideloading);
 }

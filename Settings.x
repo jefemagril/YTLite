@@ -651,3 +651,8 @@ static NSString *GetCacheSize() {
     return image;
 }
 %end
+
+%ctor {
+    NSLog(@"[YTLite] Settings %%ctor running");
+    %init;
+}
