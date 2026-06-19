@@ -118,9 +118,10 @@ static NSString *GetCacheSize() {
 %new(v@:@)
 - (void)updateYTLiteSectionWithEntry:(id)entry {
     NSLog(@"[YTLite] updateYTLiteSectionWithEntry started running");
+    YTSettingsViewController *settingsViewController = [self valueForKey:@"_settingsViewControllerDelegate"];
+    NSLog(@"[YTLite] settingsViewController delegate: %@", settingsViewController);
     NSMutableArray *sectionItems = [NSMutableArray array];
     Class YTSettingsSectionItemClass = %c(YTSettingsSectionItem);
-    YTSettingsViewController *settingsViewController = [self valueForKey:@"_settingsViewControllerDelegate"];
 
     YTSettingsSectionItem *space = [%c(YTSettingsSectionItem) itemWithTitle:nil accessibilityIdentifier:@"YTLiteSectionItem" detailTextBlock:nil selectBlock:nil];
 
@@ -628,8 +629,13 @@ static NSString *GetCacheSize() {
     [sectionItems addObject:version];
 
     BOOL isNew = [settingsViewController respondsToSelector:@selector(setSectionItems:forCategory:title:icon:titleDescription:headerHidden:)];
-    isNew ? [settingsViewController setSectionItems:sectionItems forCategory:YTLiteSection title:@"YTLite" icon:nil titleDescription:nil headerHidden:NO]
-          : [settingsViewController setSectionItems:sectionItems forCategory:YTLiteSection title:@"YTLite" titleDescription:nil headerHidden:NO];
+    NSLog(@"[YTLite] setSectionItems being called on %@. isNew: %d, items count: %lu", settingsViewController, isNew, (unsigned long)sectionItems.count);
+    if (isNew) {
+        [settingsViewController setSectionItems:sectionItems forCategory:YTLiteSection title:@"YTLite" icon:nil titleDescription:nil headerHidden:NO];
+    } else {
+        [settingsViewController setSectionItems:sectionItems forCategory:YTLiteSection title:@"YTLite" titleDescription:nil headerHidden:NO];
+    }
+    NSLog(@"[YTLite] setSectionItems finished calling!");
 
 }
 

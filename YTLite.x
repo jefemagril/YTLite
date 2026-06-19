@@ -720,7 +720,9 @@ static BOOL findCell(ASNodeController *nodeController, NSArray <NSString *> *ide
 
 %new
 - (void)removeCellsAtIndexPath:(NSIndexPath *)indexPath {
-    [self deleteItemsAtIndexPaths:@[indexPath]];
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [self deleteItemsAtIndexPaths:@[indexPath]];
+    });
 }
 %end
 
