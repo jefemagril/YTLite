@@ -71,12 +71,14 @@ static NSString *accessGroupID() {
 }
 %end
 
+static NSString *mainBundlePath = nil;
+
 BOOL isSelf() {
     NSArray *address = [NSThread callStackReturnAddresses];
     Dl_info info = {0};
     if (dladdr((void *)[address[2] longLongValue], &info) == 0) return NO;
-    NSString *path = [NSString stringWithUTF8String:info.dli_fname];
-    return [path hasPrefix:NSBundle.mainBundle.bundlePath];
+    NSString *path = [[NSString stringWithUTF8String:info.dli_fname] stringByResolvingSymlinksInPath];
+    return [path hasPrefix:mainBundlePath];
 }
 
 %hook NSBundle
@@ -142,5 +144,8 @@ BOOL isSelf() {
 
 %ctor {
     BOOL isAppStoreApp = [[NSFileManager defaultManager] fileExistsAtPath:[[NSBundle mainBundle] appStoreReceiptURL].path];
-    if (!isAppStoreApp) %init(gSideloading);
+    if (!isAppStoreApp) {
+        mainBundlePath = [[NSBundle mainBundle].bundlePath stringByResolvingSymlinksInPath];
+        %init(gSideloading);
+    }
 }
