@@ -635,6 +635,10 @@ static NSString *GetCacheSize() {
 
 - (void)updateSectionForCategory:(NSUInteger)category withEntry:(id)entry {
     NSLog(@"[YTLite] updateSectionForCategory called for category: %lu", (unsigned long)category);
+    if (category == 1) {
+        NSLog(@"[YTLite] Category 1 loaded! Forcing YTLite settings injection...");
+        [self updateYTLiteSectionWithEntry:nil];
+    }
     if (category == YTLiteSection) {
         NSLog(@"[YTLite] loading YTLiteSection settings!");
         [self updateYTLiteSectionWithEntry:entry];
