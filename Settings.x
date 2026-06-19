@@ -6,6 +6,23 @@
 
 static const NSInteger YTLiteSection = 789;
 
+static NSArray *(*orig_settingsCategoryOrder)(id, SEL);
+
+static NSArray *hook_settingsCategoryOrder(id self, SEL _cmd) {
+    NSArray *order = orig_settingsCategoryOrder(self, _cmd);
+    NSLog(@"[YTLite] original settingsCategoryOrder called via swizzle: %@", order);
+    NSMutableArray *mutableOrder = [order mutableCopy];
+    NSUInteger insertIndex = [order indexOfObject:@(1)];
+    NSLog(@"[YTLite] swizzle insertIndex for category 1: %lu", (unsigned long)insertIndex);
+    if (insertIndex != NSNotFound) {
+        [mutableOrder insertObject:@(YTLiteSection) atIndex:insertIndex + 1];
+        NSLog(@"[YTLite] swizzle successfully inserted YTLiteSection (789)");
+    } else {
+        NSLog(@"[YTLite] swizzle WARNING: Category 1 (General) not found in settingsCategoryOrder!");
+    }
+    return mutableOrder;
+}
+
 static NSString *GetCacheSize() {
     NSString *cachePath = NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES).firstObject;
     NSArray *filesArray = [[NSFileManager defaultManager] subpathsOfDirectoryAtPath:cachePath error:nil];
@@ -24,23 +41,6 @@ static NSString *GetCacheSize() {
 }
 
 // Settings
-%hook YTAppSettingsPresentationData
-+ (NSArray *)settingsCategoryOrder {
-    NSArray *order = %orig;
-    NSLog(@"[YTLite] original settingsCategoryOrder: %@", order);
-    NSMutableArray *mutableOrder = [order mutableCopy];
-    NSUInteger insertIndex = [order indexOfObject:@(1)];
-    NSLog(@"[YTLite] insertIndex for category 1: %lu", (unsigned long)insertIndex);
-    if (insertIndex != NSNotFound) {
-        [mutableOrder insertObject:@(YTLiteSection) atIndex:insertIndex + 1];
-        NSLog(@"[YTLite] successfully inserted YTLiteSection (789) into category order");
-    } else {
-        NSLog(@"[YTLite] WARNING: Category 1 (General) not found in settingsCategoryOrder!");
-    }
-    return mutableOrder;
-}
-%end
-
 %hook YTSettingsSectionController
 - (void)setSelectedItem:(NSUInteger)selectedItem {
     if (selectedItem != NSNotFound) %orig;
@@ -664,14 +664,19 @@ static NSString *GetCacheSize() {
 %ctor {
     NSLog(@"[YTLite] Settings %%ctor running");
     Class cls = objc_getClass("YTAppSettingsPresentationData");
-    NSLog(@"[YTLite] class YTAppSettingsPresentationData: %@", cls);
+    if (!cls) cls = objc_getClass("YTAppSettingsGroupPresentationData");
+    NSLog(@"[YTLite] settings presentation class resolved: %@", cls);
     if (cls) {
-        BOOL respondsToClassMethod = [cls respondsToSelector:@selector(settingsCategoryOrder)];
-        BOOL respondsToInstanceMethod = [cls instancesRespondToSelector:@selector(settingsCategoryOrder)];
-        NSLog(@"[YTLite] YTAppSettingsPresentationData class method settingsCategoryOrder: %d", respondsToClassMethod);
-        NSLog(@"[YTLite] YTAppSettingsPresentationData instance method settingsCategoryOrder: %d", respondsToInstanceMethod);
+        Method method = class_getClassMethod(cls, @selector(settingsCategoryOrder));
+        if (method) {
+            orig_settingsCategoryOrder = (NSArray *(*)(id, SEL))method_getImplementation(method);
+            method_setImplementation(method, (IMP)hook_settingsCategoryOrder);
+            NSLog(@"[YTLite] Successfully swizzled settingsCategoryOrder!");
+        } else {
+            NSLog(@"[YTLite] ERROR: settingsCategoryOrder class method not found!");
+        }
     } else {
-        NSLog(@"[YTLite] ERROR: class YTAppSettingsPresentationData is nil!");
+        NSLog(@"[YTLite] ERROR: settings presentation class not found!");
     }
     %init;
 }
